@@ -5959,6 +5959,30 @@ class ConsommeTests
         NetworkTests::VerifyPortZeroRebindSucceeds();
     }
 
+    WSL2_TEST_METHOD(DualStackBindAcceptsIpv4)
+    {
+        CONSOMME_TEST_ONLY();
+
+        m_config->Update(LxssGenerateTestConfig({.networkingMode = wsl::core::NetworkingMode::Consomme}));
+
+        // Make sure the VM doesn't time out
+        WslKeepAlive keepAlive;
+
+        {
+            // An IPv6-only socket doesn't reserve the IPv4 port.
+            auto guestProcess = NetworkTests::BindGuestPort(L"TCP6-LISTEN:1234,bind=::,ipv6only=1,fork", true);
+            NetworkTests::BindHostPort(1234, SOCK_STREAM, IPPROTO_TCP, true);
+        }
+
+        {
+            // A socket bound to :: without IPV6_V6ONLY also accepts IPv4, so the IPv4 port is reserved
+            // on the host and IPv4 loopback traffic from the guest reaches the socket.
+            auto guestProcess = NetworkTests::BindGuestPort(L"TCP6-LISTEN:1235,bind=::,ipv6only=0,fork", true);
+            NetworkTests::BindHostPort(1235, SOCK_STREAM, IPPROTO_TCP, false);
+            VERIFY_ARE_EQUAL(LxsstuLaunchWsl(L"socat -u OPEN:/dev/null TCP4:127.0.0.1:1235"), 0L);
+        }
+    }
+
     WSL2_TEST_METHOD(HttpProxySimple)
     {
         CONSOMME_TEST_ONLY();
